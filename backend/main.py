@@ -532,14 +532,81 @@ def predict_rainfall(data: PredictionInput):
             )
     }
 
-# 15. RUN SERVER DIRECTLY
+# 15. GET CITY WEATHER HISTORY (For Frontend Charts)
+@app.get("/history")
+def get_city_history(city: str, end_date: str, days: int = 7):
+    """
+    Returns historical weather data for a city to plot charts in the frontend.
+    """
+    if weather_df is None:
+        raise HTTPException(status_code=500, detail="Weather dataset is not loaded.")
+        
+    try:
+        end_dt = pd.to_datetime(end_date)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
 
-if __name__ == "__main__":
+    city_matches = weather_df[weather_df["city"].str.lower() == city.strip().lower()]
+    if city_matches.empty:
+        raise HTTPException(status_code=404, detail=f"City '{city}' not found.")
 
-    import uvicorn
+    past_data = city_matches[city_matches["time"] <= end_dt].tail(days)
+    
+    if past_data.empty:
+        raise HTTPException(status_code=404, detail="No historical data found.")
 
-    uvicorn.run(
-        app,
-        host="127.0.0.1",
-        port=8000
-    )
+    history_records = []
+    for _, row in past_data.iterrows():
+        history_records.append({
+            "date": row["time"].strftime("%Y-%m-%d"),
+            "temperature": round(row["temperature_2m_mean"], 2),
+            "rainfall_mm": round(row["rain_sum"], 2),
+            "wind_speed": round(row["windspeed_10m_max"], 2)
+        })
+        
+    return {
+        "city": city,
+        "days_returned": len(history_records),
+        "history": history_records
+    }
+
+
+# 16. PREDICT FOR ALL CITIES (For Frontend Map View)
+@app.get("/predict-all")
+def predict_all_cities(date: str):
+    """
+    Returns rainfall predictions for all available cities on a specific date.
+    Useful for displaying a weather map in the frontend.
+    """
+    if clf is None or weather_df is None:
+        raise HTTPException(status_code=500, detail="Models or dataset not loaded.")
+        
+    try:
+        requested_date = pd.to_datetime(date)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid date format. Use YYYY-MM-DD.")
+
+    day_data = weather_df[weather_df["time"] == requested_date]
+    
+    if day_data.empty:
+        raise HTTPException(status_code=404, detail=f"No data available for {date}.")
+
+    predictions = []
+    for _, row in day_data.iterrows():
+        input_df = pd.DataFrame([row])[feature_columns]
+        
+        try:
+            rain_prediction = int(clf.predict(input_df)[0])
+            predictions.append({
+                "city": row["city"],
+                "rain_tomorrow": "YES" if rain_prediction == 1 else "NO"
+            })
+        except Exception:
+            continue
+            
+    return {
+        "date": date,
+        "prediction_for": (requested_date + pd.Timedelta(days=1)).strftime("%Y-%m-%d"),
+        "total_cities": len(predictions),
+        "predictions": predictions
+    }
