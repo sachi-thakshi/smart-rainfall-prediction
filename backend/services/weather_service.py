@@ -1,3 +1,4 @@
+import requests
 import pandas as pd
 from fastapi import HTTPException
 from core.config import DATASET_PATH
@@ -126,3 +127,60 @@ def get_city_history_service(city: str, date: str, days: int):
         "count": len(records),
         "records": records
     }
+
+def get_7day_forecast_service(city: str):
+    if weather_df is None:
+        raise HTTPException(status_code=500, detail="Weather dataset is not loaded.")
+
+    city_matches = weather_df[weather_df["city"].str.lower() == city.strip().lower()]
+    if city_matches.empty:
+        raise HTTPException(status_code=404, detail=f"City '{city}' not found.")
+
+    lat = city_matches.iloc[0]["latitude"]
+    lon = city_matches.iloc[0]["longitude"]
+    elev = city_matches.iloc[0]["elevation"]
+
+    url = (f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&elevation={elev}"
+           f"&daily=temperature_2m_max,temperature_2m_min,rain_sum,windspeed_10m_max,"
+           f"apparent_temperature_max,precipitation_hours,uv_index_max"
+           f"&timezone=Asia%2FColombo&forecast_days=7")
+
+    try:
+        res = requests.get(url, timeout=10)
+        data = res.json().get("daily", {})
+        
+        if not data:
+            raise ValueError("No daily data in response")
+
+        forecast_data = []
+        for i in range(len(data.get("time", []))):
+            rain = data["rain_sum"][i]
+            temp_max = data["temperature_2m_max"][i]
+            
+            condition = "clear"
+            if rain > 35:
+                condition = "severe"
+            elif rain > 0.1:
+                condition = "rainy"
+            elif temp_max > 32.0:
+                condition = "hot"
+
+            forecast_data.append({
+                "date": data["time"][i],
+                "temp_max": temp_max,
+                "temp_min": data["temperature_2m_min"][i],
+                "feels_like": data["apparent_temperature_max"][i],
+                "rain_sum": rain,
+                "windspeed_10m_max": data["windspeed_10m_max"][i],
+                "precip_hours": data["precipitation_hours"][i],
+                "uv_index": data["uv_index_max"][i],
+                "weather_condition": condition
+            })
+            
+        return {
+            "city": city,
+            "forecast": forecast_data
+        }
+    except Exception as e:
+        print("Forecast Fetch Error:", e)
+        raise HTTPException(status_code=500, detail="Failed to fetch 7-day forecast from Open-Meteo.")
