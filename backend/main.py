@@ -242,6 +242,18 @@ class PredictionInput(BaseModel):
         description="Historical date in YYYY-MM-DD format"
     )
 
+class SeasonPredictionInput(BaseModel):
+
+    city: str = Field(
+        ..., 
+        description="Sri Lankan city name, e.g. Anuradhapura"
+    )
+
+    season: str = Field(
+        ...,
+        description="Season: Type 'maha' or 'yala'"
+    )
+
 
 # 10. HOME
 @app.get("/")
@@ -543,3 +555,146 @@ if __name__ == "__main__":
         host="127.0.0.1",
         port=8000
     )
+
+
+# --------------------------------------------------------
+# CROP RECOMMENDATION SYSTEM INTEGRATION (SMART CHAINING)
+# --------------------------------------------------------
+
+# 1. DEFINE CROP MODEL PATHS
+CROP_CLF_PATH = os.path.join(MODEL_DIR, "crop_classifier.pkl")
+CROP_SCALER_PATH = os.path.join(MODEL_DIR, "crop_scaler.pkl")
+CROP_LE_PATH = os.path.join(MODEL_DIR, "crop_label_encoder.pkl")
+
+# 2. LOAD CROP MODELS
+crop_clf = None
+crop_scaler = None
+crop_le = None
+
+try:
+    crop_clf = joblib.load(CROP_CLF_PATH)
+    crop_scaler = joblib.load(CROP_SCALER_PATH)
+    crop_le = joblib.load(CROP_LE_PATH)
+    print("Crop Models loaded successfully!")
+except Exception as e:
+    print("ERROR: Could not load crop models.")
+    print(e)
+
+# 5. SOIL PROFILES DICTIONARY (Filtered for exact dataset cities)
+SOIL_PROFILES = {
+    "athurugiriya": {"N": 40, "P": 30, "K": 40, "ph": 6.0, "humidity": 80.0},
+    "badulla": {"N": 45, "P": 50, "K": 45, "ph": 6.3, "humidity": 74.0},
+    "bentota": {"N": 40, "P": 30, "K": 37, "ph": 6.0, "humidity": 81.0},
+    "colombo": {"N": 40, "P": 30, "K": 40, "ph": 6.0, "humidity": 80.0},
+    "galle": {"N": 42, "P": 30, "K": 38, "ph": 6.0, "humidity": 82.0},
+    "gampaha": {"N": 45, "P": 32, "K": 38, "ph": 6.2, "humidity": 78.0},
+    "hambantota": {"N": 70, "P": 35, "K": 25, "ph": 7.0, "humidity": 65.0},
+    "hatton": {"N": 25, "P": 110, "K": 75, "ph": 5.6, "humidity": 84.0},
+    "jaffna": {"N": 75, "P": 25, "K": 20, "ph": 7.5, "humidity": 70.0},
+    "kalmunai": {"N": 68, "P": 36, "K": 32, "ph": 6.7, "humidity": 77.0},
+    "kalutara": {"N": 38, "P": 28, "K": 35, "ph": 5.8, "humidity": 82.0},
+    "kandy": {"N": 50, "P": 45, "K": 40, "ph": 6.5, "humidity": 78.0},
+    "kesbewa": {"N": 40, "P": 30, "K": 40, "ph": 6.0, "humidity": 80.0},
+    "kolonnawa": {"N": 40, "P": 30, "K": 40, "ph": 6.0, "humidity": 80.0},
+    "kurunegala": {"N": 55, "P": 42, "K": 35, "ph": 6.6, "humidity": 72.0},
+    "mabole": {"N": 40, "P": 30, "K": 40, "ph": 6.0, "humidity": 80.0},
+    "maharagama": {"N": 40, "P": 30, "K": 40, "ph": 6.0, "humidity": 80.0},
+    "mannar": {"N": 70, "P": 28, "K": 22, "ph": 7.3, "humidity": 68.0},
+    "matale": {"N": 55, "P": 40, "K": 35, "ph": 6.4, "humidity": 75.0},
+    "matara": {"N": 40, "P": 32, "K": 36, "ph": 6.1, "humidity": 81.0},
+    "moratuwa": {"N": 40, "P": 30, "K": 40, "ph": 6.0, "humidity": 80.0},
+    "mount lavinia": {"N": 40, "P": 30, "K": 40, "ph": 6.0, "humidity": 80.0},
+    "negombo": {"N": 45, "P": 30, "K": 35, "ph": 6.2, "humidity": 79.0},
+    "oruwala": {"N": 40, "P": 30, "K": 40, "ph": 6.0, "humidity": 80.0},
+    "pothuhera": {"N": 55, "P": 42, "K": 35, "ph": 6.6, "humidity": 72.0},
+    "puttalam": {"N": 68, "P": 30, "K": 26, "ph": 7.1, "humidity": 70.0},
+    "ratnapura": {"N": 48, "P": 38, "K": 42, "ph": 5.9, "humidity": 80.0},
+    "sri jayewardenepura kotte": {"N": 40, "P": 30, "K": 40, "ph": 6.0, "humidity": 80.0},
+    "trincomalee": {"N": 65, "P": 35, "K": 30, "ph": 6.8, "humidity": 76.0},
+    "weligama": {"N": 41, "P": 31, "K": 36, "ph": 6.0, "humidity": 81.0},
+    "default": {"N": 50, "P": 50, "K": 50, "ph": 6.5, "humidity": 75.0}
+}
+
+# 16. SMART RECOMMENDATION ENDPOINT (SEASONAL APPROACH)
+
+@app.post("/smart-recommendation")
+def smart_recommendation(data: SeasonPredictionInput):
+    if reg is None or crop_clf is None:
+        raise HTTPException(status_code=500, detail="Models are not loaded.")
+    if weather_df is None:
+        raise HTTPException(status_code=500, detail="Weather dataset is not loaded.")
+
+    city_lower = data.city.strip().lower()
+    season_lower = data.season.strip().lower()
+
+    if season_lower not in ["maha", "yala"]:
+        raise HTTPException(status_code=400, detail="Season must be exactly 'maha' or 'yala'.")
+
+    # 1. Find City
+    city_matches = weather_df[weather_df["city"].str.lower() == city_lower]
+    if city_matches.empty:
+        raise HTTPException(status_code=404, detail=f"City '{data.city}' not found in dataset.")
+
+    # 2. Filter by Season (Maha: Sep-Mar, Yala: May-Aug)
+    if season_lower == "maha":
+        season_months = [9, 10, 11, 12, 1, 2, 3]
+    else:
+        season_months = [5, 6, 7, 8]
+
+    season_data = city_matches[city_matches["time"].dt.month.isin(season_months)]
+    
+    if season_data.empty:
+        raise HTTPException(status_code=404, detail=f"No seasonal data found for {data.city}.")
+
+    # 3. Create a Representative Profile for the Season 
+    representative_row = season_data[feature_columns].mean().to_frame().T
+
+    try:
+        # Step 1: Predict Average Daily Rainfall and calculate Monthly Rainfall
+        daily_rainfall_prediction = max(0.0, float(reg.predict(representative_row)[0]))
+        monthly_rainfall = daily_rainfall_prediction * 30  # Crop model expects larger seasonal values
+        
+        temperature = float(season_data["temperature_2m_mean"].mean())
+
+        # Step 2: Fetch Soil Profile
+        soil_data = SOIL_PROFILES.get(city_lower, SOIL_PROFILES["default"])
+
+        # Step 3: Crop Feature Engineering
+        temp_humidity_index = temperature * soil_data["humidity"]
+        total_npk = soil_data["N"] + soil_data["P"] + soil_data["K"]
+        ph_category = 0 if soil_data["ph"] <= 5.5 else (1 if soil_data["ph"] <= 7.5 else 2)
+        log_rainfall = np.log1p(monthly_rainfall)
+
+        # Step 4: Prepare Data for Crop Model
+        crop_features = np.array([[
+            soil_data["N"], soil_data["P"], soil_data["K"], 
+            temperature, soil_data["humidity"], soil_data["ph"], 
+            monthly_rainfall, temp_humidity_index, total_npk, 
+            ph_category, log_rainfall
+        ]])
+
+        # Step 5: Scale and Predict Best Crop
+        scaled_features = crop_scaler.transform(crop_features)
+        prediction_encoded = crop_clf.predict(scaled_features)
+        recommended_crop = crop_le.inverse_transform(prediction_encoded)[0]
+
+        return {
+            "city": data.city.capitalize(),
+            "season": "Maha (September to March)" if season_lower == "maha" else "Yala (May to August)",
+            "weather_forecast": {
+                "average_temperature_c": round(temperature, 2),
+                "estimated_monthly_rainfall_mm": round(monthly_rainfall, 2)
+            },
+            "soil_profile_used": soil_data,
+            "smart_recommendation": {
+                "best_crop": recommended_crop.upper()
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    
+# 15. RUN SERVER DIRECTLY
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=8000)
