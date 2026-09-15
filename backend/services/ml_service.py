@@ -1,4 +1,5 @@
 import joblib
+import requests
 import pandas as pd
 import numpy as np
 from fastapi import HTTPException
@@ -156,100 +157,155 @@ def smart_recommendation_service(city: str, season: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-def get_model_metrics_service():
-    return {
-        "classification_model": type(clf).__name__ if clf else "None",
-        "regression_model": type(reg).__name__ if reg else "None",
-        "features": feature_columns or [],
-        "feature_count": len(feature_columns) if feature_columns else 0,
-        "target_classification": "rain_tomorrow (0 = No Rain, 1 = Rain)",
-        "target_regression": "rainfall_amount_tomorrow (mm)",
-        "dataset_summary": {
-            "total_rows": len(weather_df) if weather_df is not None else 0,
-            "cities": int(weather_df["city"].nunique()) if weather_df is not None else 0,
-            "start_date": weather_df["time"].min().strftime("%Y-%m-%d") if weather_df is not None else None,
-            "end_date": weather_df["time"].max().strftime("%Y-%m-%d") if weather_df is not None else None
-        }
+def get_live_cities_overview_service():
+    if clf is None or reg is None or weather_df is None:
+        raise HTTPException(status_code=500, detail="Models/Dataset not loaded.")
+
+    wet_zone = {
+        "Colombo", "Galle", "Matara", "Kalutara", "Ratnapura", "Kandy", "Hatton",
+        "Gampaha", "Maharagama", "Moratuwa", "Mount Lavinia", "Kesbewa", "Kolonnawa",
+        "Sri Jayewardenepura Kotte", "Weligama", "Athurugiriya", "Mabole", "Oruwala"
     }
+    dry_zone = {"Jaffna", "Mannar", "Trincomalee", "Kalmunai", "Hambantota", "Puttalam"}
 
-def predict_custom_service(data: CustomPredictionInput):
-    if clf is None or reg is None:
-        raise HTTPException(status_code=500, detail="ML models are not loaded.")
+    cities_info = []
+    lats = []
+    lons = []
+    elevs = []
 
-    season = 1 if data.month in [12, 1, 2] else (2 if data.month in [3, 4, 5] else (3 if data.month in [6, 7, 8, 9] else 4))
-    
-    lat, lon, elev = data.latitude, data.longitude, data.elevation
-    if (lat is None or lon is None or elev is None) and weather_df is not None:
-        city_rows = weather_df[weather_df["city"].str.lower() == data.city.strip().lower()]
-        if not city_rows.empty:
-            first_row = city_rows.iloc[0]
-            lat = lat if lat is not None else float(first_row.get("latitude", 6.9))
-            lon = lon if lon is not None else float(first_row.get("longitude", 79.9))
-            elev = elev if elev is not None else float(first_row.get("elevation", 15.0))
-        else:
-            lat, lon, elev = lat or 6.9, lon or 79.9, elev or 15.0
-    else:
-        lat, lon, elev = lat or 6.9, lon or 79.9, elev or 15.0
+    # Get base details for all 30 cities
+    grouped = weather_df.groupby("city")
+    for city_name, group in grouped:
+        first = group.iloc[0]
+        lats.append(str(round(float(first["latitude"]), 4)))
+        lons.append(str(round(float(first["longitude"]), 4)))
+        elevs.append(str(round(float(first["elevation"]), 1)))
+        
+        zone = "Wet Zone" if city_name in wet_zone else ("Dry Zone" if city_name in dry_zone else "Intermediate Zone")
+        cities_info.append({
+            "city": city_name,
+            "latitude": float(first["latitude"]),
+            "longitude": float(first["longitude"]),
+            "elevation": float(first["elevation"]),
+            "zone": zone,
+            "avg_daily_rainfall_mm": round(float(group["rain_sum"].mean()), 2),
+            "avg_temp": round(float(group["temperature_2m_mean"].mean()), 1)
+        })
 
-    gusts = data.windgusts_10m_max if data.windgusts_10m_max is not None else data.windspeed_10m_max * 1.35
-    temp_apparent_interaction = data.temperature_2m_mean * data.apparent_temperature_mean
-    wind_cat = 0 if data.windspeed_10m_max <= 10 else (1 if data.windspeed_10m_max <= 20 else 2)
+    # Fetch live data for all 30 cities in ONE single API call (Super Fast!)
+    lat_str = ",".join(lats)
+    lon_str = ",".join(lons)
+    elev_str = ",".join(elevs)
 
-    features_dict = {
-        "temperature_2m_mean": [data.temperature_2m_mean],
-        "temperature_2m_max": [data.temperature_2m_max],
-        "temperature_2m_min": [data.temperature_2m_min],
-        "apparent_temperature_mean": [data.apparent_temperature_mean],
-        "windspeed_10m_max": [data.windspeed_10m_max],
-        "windgusts_10m_max": [gusts],
-        "winddirection_10m_dominant": [data.winddirection_10m_dominant],
-        "precipitation_hours": [data.precipitation_hours],
-        "latitude": [lat],
-        "longitude": [lon],
-        "elevation": [elev],
-        "month": [data.month],
-        "season": [season],
-        "rolling_rainfall": [data.rolling_rainfall],
-        "rainfall_lag_1": [data.rainfall_lag_1],
-        "temp_diff": [data.temp_diff],
-        "wind_change": [data.wind_change],
-        "temp_apparent_temp_interaction": [temp_apparent_interaction],
-        "wind_category": [wind_cat]
-    }
-
-    input_df = pd.DataFrame(features_dict)[feature_columns]
+    url = (f"https://api.open-meteo.com/v1/forecast?latitude={lat_str}&longitude={lon_str}&elevation={elev_str}"
+           f"&daily=temperature_2m_max,temperature_2m_min,apparent_temperature_max,apparent_temperature_min,"
+           f"rain_sum,precipitation_hours,windspeed_10m_max,windgusts_10m_max,winddirection_10m_dominant"
+           f"&timezone=Asia%2FColombo&past_days=10&forecast_days=2")
 
     try:
-        rain_pred = int(clf.predict(input_df)[0])
-        rain_prob = float(clf.predict_proba(input_df)[0][1]) * 100
-        rainfall_amount = max(0.0, float(reg.predict(input_df)[0]))
+        res = requests.get(url, timeout=15)
+        res_data = res.json()
+        if not isinstance(res_data, list):
+            res_data = [res_data]
+        is_live = True
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Custom prediction failed: {str(e)}")
+        print("Failed to fetch live overview data:", e)
+        res_data = []
+        is_live = False
 
-    return {
-        "city": data.city,
-        "simulated": True,
-        "rain_tomorrow": "YES" if rain_pred == 1 else "NO",
-        "probability": round(rain_prob, 2),
-        "rainfall_mm": round(rainfall_amount, 2),
-        "season": season,
-        "input_features": features_dict
-    }
+    # Helper to assign weather tokens for frontend icons
+    def get_weather_token(pred_rain_mm, max_temp):
+        if pred_rain_mm <= 0.1:
+            return "hot" if max_temp > 32.0 else "clear"
+        elif pred_rain_mm <= 35:
+            return "rainy"
+        else:
+            return "severe"
 
-def predict_batch_service(cities: list, date: str):
-    results = []
-    for city in cities:
-        try:
-            # Re-use the existing predict_rainfall_service
-            pred = predict_rainfall_service(city, date)
-            results.append(pred)
-        except HTTPException as he:
-            results.append({"city": city, "date": date, "error": he.detail, "status": "error"})
-        except Exception as e:
-            results.append({"city": city, "date": date, "error": str(e), "status": "error"})
+    overview = []
     
+    # Run ML Predictions for all 30 cities
+    for idx, c_info in enumerate(cities_info):
+        if is_live and idx < len(res_data) and "daily" in res_data[idx]:
+            try:
+                daily_data = res_data[idx]["daily"]
+                df_live = pd.DataFrame(daily_data)
+
+                df_live["temperature_2m_mean"] = (df_live["temperature_2m_max"] + df_live["temperature_2m_min"]) / 2
+                df_live["apparent_temperature_mean"] = (df_live["apparent_temperature_max"] + df_live["apparent_temperature_min"]) / 2
+                df_live["rolling_rainfall"] = df_live["rain_sum"].shift(1).rolling(window=7, min_periods=1).sum()
+                df_live["rainfall_lag_1"] = df_live["rain_sum"].shift(1)
+                df_live["temp_diff"] = df_live["temperature_2m_mean"].diff()
+                df_live["wind_change"] = df_live["windspeed_10m_max"].diff()
+                df_live["temp_apparent_temp_interaction"] = df_live["temperature_2m_mean"] * df_live["apparent_temperature_mean"]
+
+                def build_model_input(row):
+                    month = pd.to_datetime(row["time"]).month
+                    season = 1 if month in [12, 1, 2] else (2 if month in [3, 4, 5] else (3 if month in [6, 7, 8, 9] else 4))
+                    wind_speed = row["windspeed_10m_max"]
+                    wind_cat = 0 if wind_speed <= 10 else (1 if wind_speed <= 20 else 2)
+                    
+                    features_dict = {
+                        "temperature_2m_mean": row["temperature_2m_mean"],
+                        "temperature_2m_max": row["temperature_2m_max"],
+                        "temperature_2m_min": row["temperature_2m_min"],
+                        "apparent_temperature_mean": row["apparent_temperature_mean"],
+                        "windspeed_10m_max": wind_speed,
+                        "windgusts_10m_max": row["windgusts_10m_max"],
+                        "winddirection_10m_dominant": row["winddirection_10m_dominant"],
+                        "precipitation_hours": row["precipitation_hours"],
+                        "latitude": c_info["latitude"],
+                        "longitude": c_info["longitude"],
+                        "elevation": c_info["elevation"],
+                        "month": month,
+                        "season": season,
+                        "rolling_rainfall": row["rolling_rainfall"],
+                        "rainfall_lag_1": row["rainfall_lag_1"],
+                        "temp_diff": row["temp_diff"],
+                        "wind_change": row["wind_change"],
+                        "temp_apparent_temp_interaction": row["temp_apparent_temp_interaction"],
+                        "wind_category": wind_cat
+                    }
+                    return pd.DataFrame([features_dict])[feature_columns]
+
+                yesterday_row = df_live.iloc[-3]
+                today_row = df_live.iloc[-2]
+
+                # Predict TODAY
+                input_today = build_model_input(yesterday_row)
+                rain_prob_today = float(clf.predict_proba(input_today)[0][1]) * 100
+                rain_mm_today = max(0.0, float(reg.predict(input_today)[0]))
+                cond_today = get_weather_token(rain_mm_today, yesterday_row["temperature_2m_max"])
+
+                # Predict TOMORROW
+                input_tom = build_model_input(today_row)
+                rain_prob_tom = float(clf.predict_proba(input_tom)[0][1]) * 100
+                rain_mm_tom = max(0.0, float(reg.predict(input_tom)[0]))
+                cond_tom = get_weather_token(rain_mm_tom, today_row["temperature_2m_max"])
+
+                c_info["today"] = {
+                    "rain_mm": round(rain_mm_today, 2),
+                    "probability": round(rain_prob_today, 1),
+                    "condition": cond_today,
+                    "temp": round(float(today_row["temperature_2m_mean"]), 1)
+                }
+                c_info["tomorrow"] = {
+                    "rain_mm": round(rain_mm_tom, 2),
+                    "probability": round(rain_prob_tom, 1),
+                    "condition": cond_tom,
+                    "temp": round(float(df_live.iloc[-1]["temperature_2m_mean"]), 1)
+                }
+            except Exception as e:
+                c_info["today"] = {"rain_mm": 0, "probability": 0, "condition": "clear", "temp": c_info["avg_temp"]}
+                c_info["tomorrow"] = {"rain_mm": 0, "probability": 0, "condition": "clear", "temp": c_info["avg_temp"]}
+        else:
+            c_info["today"] = {"rain_mm": 0, "probability": 0, "condition": "clear", "temp": c_info["avg_temp"]}
+            c_info["tomorrow"] = {"rain_mm": 0, "probability": 0, "condition": "clear", "temp": c_info["avg_temp"]}
+        
+        overview.append(c_info)
+
     return {
-        "date": date,
-        "count": len(results),
-        "predictions": results
+        "count": len(overview),
+        "status": "live_ml_predictions" if is_live else "historical_fallback",
+        "cities": overview
     }

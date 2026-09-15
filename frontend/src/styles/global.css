@@ -1,0 +1,251 @@
+@import "tailwindcss";
+
+:root {
+  /* --- Sky states (hero background gradients) --- */
+  --sky-clear-from: #4a7dae;
+  --sky-clear-to: #a9d0ec;
+
+  --sky-hot-from: #c97a2e;
+  --sky-hot-to: #f0b25e;
+
+  --sky-rainy-from: #38495f;
+  --sky-rainy-to: #64768f;
+
+  --sky-severe-from: #232a3d;
+  --sky-severe-to: #3d3b52; /* slight storm-purple, so severe reads differently from plain rainy */
+
+  --sky-from: var(--sky-clear-from);
+  --sky-to: var(--sky-clear-to);
+
+  /* --- Fixed surfaces --- */
+  --color-surface: #fbf9f4;
+  --color-surface-raised: #ffffff;
+  --color-ink: #1c2422;
+  --color-ink-muted: #6b7570;
+
+  /* --- Agricultural accents --- */
+  --color-rice: #3f6b4a;
+  --color-rice-dark: #2b4b34;
+  --color-paddy: #c9a227;
+
+  /* --- Glass surfaces on top of the dynamic sky --- */
+  --glass-bg: rgba(255, 255, 255, 0.14);
+  --glass-border: rgba(255, 255, 255, 0.28);
+  --glass-text: #ffffff;
+
+  /* --- Alert tones --- */
+  --alert-low: #4c8c5a;
+  --alert-moderate: #d98a2b;
+  --alert-high: #c94b3f;
+
+  --radius-leaf: 28px 8px 28px 8px;
+  --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+
+  /* --- Claymorphism tokens (derived, never hardcoded per-component) --- */
+  --clay-radius-lg: 32px;
+  --clay-radius-md: 20px;
+  --clay-shadow-dark: color-mix(in srgb, var(--color-ink) 85%, transparent);
+  --clay-shadow-light: color-mix(in srgb, white 92%, transparent);
+  --clay-glass-shadow-dark: rgba(0, 0, 0, 0.35);
+  --clay-glass-shadow-light: rgba(255, 255, 255, 0.35);
+
+  /* --- Chart tokens (used by WeeklyForecastChart, never hardcoded per-component) --- */
+  --chart-rain: #38bdf8;       /* rainfall bars */
+  --chart-rain-soft: rgba(56, 189, 248, 0.15);
+  --chart-temp: #f8b84e;       /* max temp line */
+  --chart-temp-soft: rgba(248, 184, 78, 0.18);
+  --chart-feels: #fb923c;      /* feels-like tooltip row */
+  --chart-wind: #34d399;       /* wind tooltip row */
+  --chart-uv: #c084fc;         /* uv tooltip row */
+  --chart-precip-hours: #7dd3fc;
+  --chart-grid: rgba(255, 255, 255, 0.08);
+  --chart-axis: rgba(226, 232, 240, 0.85);
+  --chart-cursor: rgba(255, 255, 255, 0.06);
+}
+
+[data-condition="clear"] {
+  --sky-from: var(--sky-clear-from);
+  --sky-to: var(--sky-clear-to);
+}
+[data-condition="hot"] {
+  --sky-from: var(--sky-hot-from);
+  --sky-to: var(--sky-hot-to);
+}
+[data-condition="rainy"] {
+  --sky-from: var(--sky-rainy-from);
+  --sky-to: var(--sky-rainy-to);
+}
+[data-condition="severe"] {
+  --sky-from: var(--sky-severe-from);
+  --sky-to: var(--sky-severe-to);
+}
+
+html, body, #root { height: 100%; }
+
+body {
+  font-family: var(--font-body);
+  color: var(--color-ink);
+  background: var(--color-surface);
+}
+
+.bg-sky-dynamic {
+  background-image: linear-gradient(160deg, var(--sky-from) 0%, var(--sky-to) 100%);
+  transition: background-image 700ms ease;
+}
+
+.font-display { font-family: var(--font-display); }
+
+.glass-panel {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.card-leaf { border-radius: var(--radius-leaf); }
+
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+.bolt-strike-a { animation: bolt-flash 7s ease-in-out infinite; }
+.bolt-strike-b { animation: bolt-flash 11s ease-in-out infinite; animation-delay: -4s; }
+
+/* ============ Claymorphism surfaces ============ */
+
+/* Neumorphic card on the light --color-surface (used in crop list, sidebar, etc.) */
+.clay-panel {
+  background: var(--color-surface-raised);
+  border-radius: var(--clay-radius-lg);
+  box-shadow:
+    8px 8px 18px var(--clay-shadow-dark),
+    -8px -8px 18px var(--clay-shadow-light);
+}
+
+/* Claymorphism version of glass-panel, for content sitting on the dynamic sky */
+.clay-glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: var(--clay-radius-lg);
+  box-shadow:
+    10px 10px 22px var(--clay-glass-shadow-dark),
+    -6px -6px 18px var(--clay-glass-shadow-light),
+    inset 1px 1px 1px rgba(255, 255, 255, 0.25);
+}
+
+.clay-chip {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 999px;
+  box-shadow:
+    4px 4px 10px var(--clay-glass-shadow-dark),
+    -3px -3px 8px var(--clay-glass-shadow-light);
+}
+
+.glass-dark {
+  background: rgba(15, 23, 42, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: var(--clay-radius-lg);
+  box-shadow:
+    8px 8px 20px rgba(0, 0, 0, 0.35),
+    -4px -4px 14px rgba(255, 255, 255, 0.03);
+}
+
+.dark-map-tiles {
+  filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.88) saturate(0.7);
+}
+.dark-map-tiles img {
+  filter: none; /* filter applied on the wrapper, not double-applied per tile */
+}
+
+/* ============ Cloud / rain / lightning / sun / wind layer ============ */
+.cloud-drift {
+  animation-name: cloud-drift;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+@keyframes cloud-drift {
+  from { transform: translateX(-25%); }
+  to { transform: translateX(125%); }
+}
+
+.rain-layer {
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    115deg,
+    rgba(255, 255, 255, 0.22) 0px,
+    rgba(255, 255, 255, 0.22) 1px,
+    transparent 1px,
+    transparent 14px
+  );
+  animation: rain-fall 0.6s linear infinite;
+}
+@keyframes rain-fall {
+  from { background-position: 0 0; }
+  to { background-position: -18px 42px; }
+}
+
+@keyframes rain-drop {
+  0% { transform: translateY(-10%) translateX(calc(var(--drift, 8px) * -1)); }
+  100% { transform: translateY(115vh) translateX(var(--drift, 8px)); }
+}
+
+.lightning-flash {
+  position: absolute;
+  inset: 0;
+  background: #ffffff;
+  opacity: 0;
+  animation: lightning 7s ease-in-out infinite;
+}
+@keyframes lightning {
+  0%, 92%, 100% { opacity: 0; }
+  93% { opacity: 0.32; }
+  94% { opacity: 0; }
+  95% { opacity: 0.18; }
+  96% { opacity: 0; }
+}
+
+@keyframes sun-pulse {
+  0%, 100% { opacity: 0.55; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.06); }
+}
+
+@keyframes sun-rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes wind-drift {
+  0% { transform: translateX(-10%); opacity: 0; }
+  10% { opacity: 0.5; }
+  90% { opacity: 0.5; }
+  100% { transform: translateX(110%); opacity: 0; }
+}
+
+@keyframes bolt-flash {
+  0%, 91%, 100% { opacity: 0; }
+  92% { opacity: 1; }
+  92.5% { opacity: 0.2; }
+  93% { opacity: 0.9; }
+  94% { opacity: 0; }
+}
+
+@keyframes wind-drift {
+  0% { transform: translateX(-15%); opacity: 0; }
+  15% { opacity: 0.6; }
+  85% { opacity: 0.6; }
+  100% { transform: translateX(115%); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
