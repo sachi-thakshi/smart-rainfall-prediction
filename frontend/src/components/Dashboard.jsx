@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { weatherApi } from '../api/weatherApi';
 import { getRainfallCategory, getProbabilityLevel, getSeasonDetails, generateAdvisory } from '../utils/helpers';
+import DistrictRainfallWidget from './DistrictRainfallWidget';
 
 export default function Dashboard({ cities, datasetInfo, preselectedCity, onSelectCityOnMap }) {
   const [selectedCity, setSelectedCity] = useState(preselectedCity || 'Colombo');
@@ -28,6 +29,11 @@ export default function Dashboard({ cities, datasetInfo, preselectedCity, onSele
   const [prediction, setPrediction] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+
+  const handleSelectStationFromWidget = (stationName) => {
+    setSelectedCity(stationName);
+    handlePredict(stationName, selectedDate);
+  };
 
   useEffect(() => {
     if (preselectedCity && preselectedCity !== selectedCity) {
@@ -123,6 +129,11 @@ export default function Dashboard({ cities, datasetInfo, preselectedCity, onSele
           </p>
         </div>
       </div>
+
+      {/* Today's & Yesterday's Live District-wise Rainfall Monitor */}
+      <DistrictRainfallWidget 
+        onSelectStationForPrediction={handleSelectStationFromWidget}
+      />
 
       {/* Prediction Query Controls & Preset Selector */}
       <div className="glass-panel rounded-2xl p-6 border border-slate-800 shadow-xl space-y-6">
