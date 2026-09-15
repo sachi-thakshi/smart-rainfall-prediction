@@ -4,6 +4,7 @@ import numpy as np
 from fastapi import HTTPException
 from core.config import *
 from services.weather_service import weather_df
+from schemas.dto import CustomPredictionInput
 
 clf, reg, feature_columns = None, None, None
 crop_clf, crop_scaler, crop_le = None, None, None
@@ -154,3 +155,101 @@ def smart_recommendation_service(city: str, season: str):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+def get_model_metrics_service():
+    return {
+        "classification_model": type(clf).__name__ if clf else "None",
+        "regression_model": type(reg).__name__ if reg else "None",
+        "features": feature_columns or [],
+        "feature_count": len(feature_columns) if feature_columns else 0,
+        "target_classification": "rain_tomorrow (0 = No Rain, 1 = Rain)",
+        "target_regression": "rainfall_amount_tomorrow (mm)",
+        "dataset_summary": {
+            "total_rows": len(weather_df) if weather_df is not None else 0,
+            "cities": int(weather_df["city"].nunique()) if weather_df is not None else 0,
+            "start_date": weather_df["time"].min().strftime("%Y-%m-%d") if weather_df is not None else None,
+            "end_date": weather_df["time"].max().strftime("%Y-%m-%d") if weather_df is not None else None
+        }
+    }
+
+def predict_custom_service(data: CustomPredictionInput):
+    if clf is None or reg is None:
+        raise HTTPException(status_code=500, detail="ML models are not loaded.")
+
+    season = 1 if data.month in [12, 1, 2] else (2 if data.month in [3, 4, 5] else (3 if data.month in [6, 7, 8, 9] else 4))
+    
+    lat, lon, elev = data.latitude, data.longitude, data.elevation
+    if (lat is None or lon is None or elev is None) and weather_df is not None:
+        city_rows = weather_df[weather_df["city"].str.lower() == data.city.strip().lower()]
+        if not city_rows.empty:
+            first_row = city_rows.iloc[0]
+            lat = lat if lat is not None else float(first_row.get("latitude", 6.9))
+            lon = lon if lon is not None else float(first_row.get("longitude", 79.9))
+            elev = elev if elev is not None else float(first_row.get("elevation", 15.0))
+        else:
+            lat, lon, elev = lat or 6.9, lon or 79.9, elev or 15.0
+    else:
+        lat, lon, elev = lat or 6.9, lon or 79.9, elev or 15.0
+
+    gusts = data.windgusts_10m_max if data.windgusts_10m_max is not None else data.windspeed_10m_max * 1.35
+    temp_apparent_interaction = data.temperature_2m_mean * data.apparent_temperature_mean
+    wind_cat = 0 if data.windspeed_10m_max <= 10 else (1 if data.windspeed_10m_max <= 20 else 2)
+
+    features_dict = {
+        "temperature_2m_mean": [data.temperature_2m_mean],
+        "temperature_2m_max": [data.temperature_2m_max],
+        "temperature_2m_min": [data.temperature_2m_min],
+        "apparent_temperature_mean": [data.apparent_temperature_mean],
+        "windspeed_10m_max": [data.windspeed_10m_max],
+        "windgusts_10m_max": [gusts],
+        "winddirection_10m_dominant": [data.winddirection_10m_dominant],
+        "precipitation_hours": [data.precipitation_hours],
+        "latitude": [lat],
+        "longitude": [lon],
+        "elevation": [elev],
+        "month": [data.month],
+        "season": [season],
+        "rolling_rainfall": [data.rolling_rainfall],
+        "rainfall_lag_1": [data.rainfall_lag_1],
+        "temp_diff": [data.temp_diff],
+        "wind_change": [data.wind_change],
+        "temp_apparent_temp_interaction": [temp_apparent_interaction],
+        "wind_category": [wind_cat]
+    }
+
+    input_df = pd.DataFrame(features_dict)[feature_columns]
+
+    try:
+        rain_pred = int(clf.predict(input_df)[0])
+        rain_prob = float(clf.predict_proba(input_df)[0][1]) * 100
+        rainfall_amount = max(0.0, float(reg.predict(input_df)[0]))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Custom prediction failed: {str(e)}")
+
+    return {
+        "city": data.city,
+        "simulated": True,
+        "rain_tomorrow": "YES" if rain_pred == 1 else "NO",
+        "probability": round(rain_prob, 2),
+        "rainfall_mm": round(rainfall_amount, 2),
+        "season": season,
+        "input_features": features_dict
+    }
+
+def predict_batch_service(cities: list, date: str):
+    results = []
+    for city in cities:
+        try:
+            # Re-use the existing predict_rainfall_service
+            pred = predict_rainfall_service(city, date)
+            results.append(pred)
+        except HTTPException as he:
+            results.append({"city": city, "date": date, "error": he.detail, "status": "error"})
+        except Exception as e:
+            results.append({"city": city, "date": date, "error": str(e), "status": "error"})
+    
+    return {
+        "date": date,
+        "count": len(results),
+        "predictions": results
+    }

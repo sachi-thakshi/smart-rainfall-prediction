@@ -36,6 +36,7 @@ try:
 except Exception as e:
     print("ERROR: Could not load weather dataset.", e)
 
+
 def get_cities_service():
     if weather_df is None:
         raise HTTPException(status_code=500, detail="Weather dataset not loaded.")
@@ -52,28 +53,76 @@ def get_dataset_info_service():
         "end_date": weather_df["time"].max().strftime("%Y-%m-%d")
     }
 
-def get_history_service(city: str, end_date: str, days: int):
+def get_cities_overview_service():
     if weather_df is None:
-        raise HTTPException(status_code=500, detail="Weather dataset not loaded.")
-    try:
-        end_dt = pd.to_datetime(end_date)
-    except:
-        raise HTTPException(status_code=400, detail="Invalid date format.")
-        
+        raise HTTPException(status_code=500, detail="Weather dataset is not loaded.")
+    
+    wet_zone = {
+        "Colombo", "Galle", "Matara", "Kalutara", "Ratnapura", "Kandy", "Hatton",
+        "Gampaha", "Maharagama", "Moratuwa", "Mount Lavinia", "Kesbewa", "Kolonnawa",
+        "Sri Jayewardenepura Kotte", "Weligama", "Athurugiriya", "Mabole", "Oruwala"
+    }
+    dry_zone = {"Jaffna", "Mannar", "Trincomalee", "Kalmunai", "Hambantota", "Puttalam"}
+
+    overview = []
+    grouped = weather_df.groupby("city")
+
+    for city_name, group in grouped:
+        first = group.iloc[0]
+        zone = "Wet Zone" if city_name in wet_zone else ("Dry Zone" if city_name in dry_zone else "Intermediate Zone")
+        avg_rain = float(group["rain_sum"].mean())
+        rainy_days_count = int((group["rain_sum"] > 0.1).sum())
+        total_days = len(group)
+
+        overview.append({
+            "city": city_name,
+            "latitude": round(float(first["latitude"]), 4),
+            "longitude": round(float(first["longitude"]), 4),
+            "elevation": round(float(first["elevation"]), 1),
+            "zone": zone,
+            "avg_daily_rainfall_mm": round(avg_rain, 2),
+            "rainy_days_percentage": round((rainy_days_count / max(1, total_days)) * 100, 1),
+            "avg_temp": round(float(group["temperature_2m_mean"].mean()), 1),
+            "total_records": total_days
+        })
+
+    return {
+        "count": len(overview),
+        "cities": sorted(overview, key=lambda x: x["city"])
+    }
+
+def get_city_history_service(city: str, date: str, days: int):
+    if weather_df is None:
+        raise HTTPException(status_code=500, detail="Weather dataset is not loaded.")
+
     city_matches = weather_df[weather_df["city"].str.lower() == city.strip().lower()]
     if city_matches.empty:
         raise HTTPException(status_code=404, detail=f"City '{city}' not found.")
-        
-    past_data = city_matches[city_matches["time"] <= end_dt].tail(days)
-    if past_data.empty:
-        raise HTTPException(status_code=404, detail="No historical data found.")
-        
-    history_records = []
-    for _, row in past_data.iterrows():
-        history_records.append({
+
+    if date:
+        try:
+            target_dt = pd.to_datetime(date)
+            subset = city_matches[city_matches["time"] <= target_dt].tail(days)
+        except Exception:
+            subset = city_matches.tail(days)
+    else:
+        subset = city_matches.tail(days)
+
+    records = []
+    for _, row in subset.iterrows():
+        records.append({
             "date": row["time"].strftime("%Y-%m-%d"),
-            "temperature": round(row["temperature_2m_mean"], 2),
-            "rainfall_mm": round(row["rain_sum"], 2),
-            "wind_speed": round(row["windspeed_10m_max"], 2)
+            "temp_mean": round(float(row.get("temperature_2m_mean", 0)), 1),
+            "temp_max": round(float(row.get("temperature_2m_max", 0)), 1),
+            "temp_min": round(float(row.get("temperature_2m_min", 0)), 1),
+            "rain_sum": round(float(row.get("rain_sum", 0)), 1),
+            "windspeed": round(float(row.get("windspeed_10m_max", 0)), 1),
+            "precipitation_hours": round(float(row.get("precipitation_hours", 0)), 1),
+            "rolling_rainfall": round(float(row.get("rolling_rainfall", 0)), 1)
         })
-    return {"city": city, "days_returned": len(history_records), "history": history_records}
+
+    return {
+        "city": city,
+        "count": len(records),
+        "records": records
+    }
