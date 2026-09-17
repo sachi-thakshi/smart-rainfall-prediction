@@ -28,9 +28,8 @@
 7. [Setup & Installation](#-setup--installation)
 8. [API Reference](#-api-reference)
 9. [Results & Model Performance](#-results--model-performance)
-10. [Academic Context](#-academic-context)
-11. [Team & Contributions](#-team--contributions)
-12. [Future Enhancements](#-future-enhancements)
+10. [Team & Contributions](#-team--contributions)
+11. [Future Enhancements](#-future-enhancements)
 
 ---
 
@@ -489,7 +488,7 @@ curl http://127.0.0.1:8000/weather/live/Athurugiriya
 **Example**
 
 ```bash
-curl -X POST http://127.0.0.1:8000/crop/recommend \
+curl -X POST http://127.0.0.1:8000/crop/smart-recommendation \
   -H "Content-Type: application/json" \
   -d '{"city": "Athurugiriya", "season": "yala"}'
 ```
@@ -524,35 +523,6 @@ curl -X POST http://127.0.0.1:8000/crop/recommend \
 - Temperature and rainfall show a **mild inverse relationship** across the 7-day horizon — visible directly in the Forecast Studio composite chart.
 
 ---
-
-## 🎓 Academic Context
-
-This project was developed for the **Machine Learning Module — Group Project Assignment**: *Machine Learning Model Development & Full-Stack Application*.
-
-### ✅ Requirement Compliance Matrix
-
-| # | Assignment Requirement | Status | Where It Is Evidenced |
-|:-:|---|:-:|---|
-| 1 | Select a **real-world problem** solvable with ML | ✅ | Rainfall prediction & agricultural crop planning for Sri Lanka — a self-selected problem, not a common tutorial project |
-| 2 | Problem is **unique**, not copied from tutorials | ✅ | Two datasets chained into a novel pipeline: weather prediction → soil profile → season-aware crop recommendation |
-| 3 | **Obtain a suitable dataset** | ✅ | Two datasets combined: 147k+ weather records (30 cities) + 2,200 crop records |
-| 4 | Explain **dataset source** | ✅ | [Datasets](#1-datasets) — open Sri Lankan meteorological data + Kaggle Crop Recommendation Dataset |
-| 5 | Explain **number of records** | ✅ | 147,000+ weather rows; 2,200 crop rows |
-| 6 | Explain **number of features** | ✅ | 16+ weather features; 7 crop features |
-| 7 | Explain **target variable** | ✅ | `rain_tomorrow` (binary), `rainfall_mm` (continuous), `label` (22 crop classes) |
-| 8 | Provide **feature descriptions** | ✅ | Full feature tables in [Datasets](#1-datasets) |
-| 9 | Document **data types** | ✅ | Numeric / categorical / datetime breakdown documented |
-| 10 | Document **missing values** | ✅ | [Data Quality Assessment](#-data-quality-assessment) — identified and imputed |
-| 11 | Document **duplicate records** | ✅ | Duplicates removed on the `(city, time)` composite key |
-| 12 | Document **data quality issues** | ✅ | Skewness, outliers, dtype inconsistencies and scale disparity all documented with treatments |
-| 13 | **At least 5–6 feature engineering techniques** | ✅ **6 implemented** | Feature interaction, aggregation, binning, log transformation, label encoding, standardization — plus missing-value handling, outlier treatment, irrelevant-feature removal and date/time extraction |
-| 14 | **Develop and evaluate multiple ML models** | ✅ | Multiple candidates trained and compared per task in [Models Developed & Evaluated](#3-models-developed--evaluated) |
-| 15 | **Select an appropriate model** with justification | ✅ | Gradient Boosting, Linear Regression and Random Forest selected with documented reasoning |
-| 16 | **Integrate the ML model into a full-stack application** | ✅ | React 19 frontend ⇄ FastAPI REST API ⇄ ML prediction service ⇄ trained models |
-| 17 | Follow the **prescribed application architecture** | ✅ | [System Architecture](#️-system-architecture) maps 1:1 onto the specification diagram |
-| 18 | **Meaningful GitHub contribution from every member** | ✅ | Commit history reflects distributed work across ML, backend, frontend and documentation |
-| 19 | Each member can **explain their contribution** | ✅ | See [Team & Contributions](#-team--contributions) |
-| 20 | Submission before the **final deadline (18 September)** | ✅ | All components committed ahead of the deadline |
 
 ### 📚 Deliverables
 
