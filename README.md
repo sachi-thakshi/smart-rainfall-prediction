@@ -69,6 +69,8 @@ Provides a 7-day weather outlook with temperature, rainfall, wind, and rainy-hou
 
 ### 05 / Smart Farming
 Recommends suitable crops based on predicted weather conditions, cultivation season, and soil information, with confidence scores.
+
+
 ---
 
 ## 🏗️ System Architecture
