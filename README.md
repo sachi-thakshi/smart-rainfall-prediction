@@ -55,27 +55,20 @@ Beyond the modelling, SmartRain was built with a deliberately **cinematic UI/UX 
 
 The frontend is structured as five sequential "intelligence chapters", each with its own dedicated rail navigation anchor.
 
-### `01 / Live Weather` — Real-time atmospheric analytics
-The landing surface. Displays the currently selected station's live prediction: temperature, condition classification (e.g. *Heavy Rain — Light Rain / Cloudy*), expected rainfall in mm and an alert status badge. The `SkyBackdrop` component renders an animated sky whose cloud density, rain streaks and drift speed are driven by the actual predicted condition and wind speed. A Today / Tomorrow toggle and a station selector sit in a persistent floating header.
+### 01 / Live Weather
+Displays current weather conditions, temperature, predicted rainfall, and alert status with a dynamic animated sky. Includes Today/Tomorrow toggle and station selection.
 
-### `02 / Rain Intelligence` — Rainfall-focused analytics
-An analytical view isolating the rainfall signal from the noise. Surfaces **predicted accumulated rainfall (mm)** and an **active weather risk classification** (Low / Moderate / Severe alert) via the `WeatherStatsStrip`, paired with a horizontally scrollable 7-day forecast carousel showing per-day rain volume and wind velocity.
+### 02 / Rain Intelligence
+Shows predicted rainfall, weather risk levels, and a 7-day forecast with rainfall and wind information.
 
-### `03 / Island Radar` — Interactive station-level map
-A full-island `react-leaflet` map with 30 live station markers, each labelled with its current temperature and condition icon. A companion sidebar provides:
-- **Station search** by name
-- **Climate-zone filters** — All / Wet Zone / Dry Zone / Intermediate Zone
-- **Live aggregate counters** — stations currently classified as Rain, Severe, Hot and Clear
-- **Per-station cards** showing temperature, predicted rainfall (mm) and rain probability (%) with an inline confidence bar
+### 03 / Island Radar
+Interactive Sri Lanka map with 30 weather stations. Supports station search, climate-zone filters, live weather counters, and detailed station information.
 
-Selecting any station propagates that choice across every other module.
+### 04 / Forecast Studio
+Provides a 7-day weather outlook with temperature, rainfall, wind, and rainy-hour statistics using interactive charts.
 
-### `04 / Forecast Studio` — Seven-day extended outlook
-A `recharts`-powered analytics workspace with three view modes — **Overview**, **Temperature** and **Rainfall**. Four headline KPI tiles summarise the week (total rainfall, peak temperature, maximum wind, total rainy hours), and a combined composite chart overlays the temperature curve on rainfall bars so the relationship between heat and precipitation is legible at a glance.
-
-### `05 / Smart Farming` — AI crop matching
-The module that converts weather into agronomy. The user selects a cultivation season — **Yala (May – Aug)** or **Maha (Sep – Mar)** — and SmartRain feeds the predicted rainfall, temperature and humidity for the selected station, together with that district's soil profile, into the crop classifier. Results are returned as a ranked list of crop matches with `predict_proba` confidence scores, match-strength labels and a highlighted top recommendation.
-
+### 05 / Smart Farming
+Recommends suitable crops based on predicted weather conditions, cultivation season, and soil information, with confidence scores.
 ---
 
 ## 🏗️ System Architecture
