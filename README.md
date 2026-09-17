@@ -577,8 +577,6 @@ This project was developed for the **Machine Learning Module — Group Project A
 | *Dusan* | Backend Developer | FastAPI architecture, routers, Pydantic schemas, prediction services |
 | *Rethmi* | Frontend Developer | React UI/UX, chapter architecture, charts, Island Radar, animations |
 
-> Replace the placeholder names above with your group members before submission. Every member is prepared to explain both their own contribution and the overall project during the individual viva voce.
-
 ---
 
 ## 🔭 Future Enhancements
