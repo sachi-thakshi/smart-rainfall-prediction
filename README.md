@@ -535,12 +535,12 @@ curl -X POST http://127.0.0.1:8000/crop/smart-recommendation \
 
 ## 👥 Team & Contributions
 
-| Member | Role | Primary Contributions |
-|---|---|---|
-| *Sachini* | ML Engineer | EDA, feature engineering, weather model training & evaluation |
-| *Dilmi* | ML Engineer | Crop recommendation model, hyperparameter tuning, model serialization |
-| *Dusan* | Backend Developer | FastAPI architecture, routers, Pydantic schemas, prediction services |
-| *Rethmi* | Frontend Developer | React UI/UX, chapter architecture, charts, Island Radar, animations |
+| Student ID | Member | Role | Primary Contributions |
+|---|---|---|---|
+| **241722040** | **Sachini Imbulagoda** | ML Engineer | EDA, feature engineering, weather model training & evaluation |
+| **241722048** | **Dilmi Sadamini** | ML Engineer | Crop recommendation model, hyperparameter tuning, model serialization |
+| **241722034** | **Dusan Navidu** | Backend Developer | FastAPI architecture, routers, Pydantic schemas, prediction services |
+| **241722038** | **Sainsa Rethmi** | Frontend Developer | React UI/UX, chapter architecture, charts, Island Radar, animations |
 
 ---
 
