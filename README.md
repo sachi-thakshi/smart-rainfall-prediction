@@ -13,6 +13,10 @@
 [![scikit-learn](https://img.shields.io/badge/scikit--learn-ML-F7931E?style=flat-square&logo=scikitlearn&logoColor=white)](https://scikit-learn.org/)
 [![License](https://img.shields.io/badge/License-Academic-lightgrey?style=flat-square)](#-license)
 
+### 🌐 Live Cloud Deployments
+[![Frontend App](https://img.shields.io/badge/Frontend-Firebase%20Hosting-FFCA28?style=flat-square&logo=firebase&logoColor=black)](https://smartrain-509006.web.app/)
+[![Backend API](https://img.shields.io/badge/Backend-Cloud%20Run-4285F4?style=flat-square&logo=googlecloud&logoColor=white)](https://smart-rainfall-prediction-583477129466.asia-southeast1.run.app/docs)
+
 </div>
 
 ---
